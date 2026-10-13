@@ -701,6 +701,7 @@ const INITIAL_USERS = [
     id: "usr-arun",
     name: "Arun Kumar",
     email: "arun.kumar@example.com",
+    password: "traveler123",
     phone: "+91 98410 99887",
     role: "traveler",
     avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
@@ -711,6 +712,7 @@ const INITIAL_USERS = [
     id: "usr-priya",
     name: "Priya Sundaram",
     email: "priya.s@example.com",
+    password: "traveler123",
     phone: "+91 98401 23456",
     role: "traveler",
     avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80",
@@ -721,6 +723,7 @@ const INITIAL_USERS = [
     id: "usr-admin",
     name: "Sowmiya (TN Stories Administrator)",
     email: "admin@tnstories.in",
+    password: "admin123",
     phone: "+91 94440 11223",
     role: "admin",
     avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80",
@@ -754,7 +757,20 @@ function loadDb(): DbSchema {
   }
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf-8');
-    return JSON.parse(raw);
+    const parsed: DbSchema = JSON.parse(raw);
+    if (parsed.users) {
+      let modified = false;
+      parsed.users.forEach((u: any) => {
+        if (!u.password) {
+          u.password = u.role === 'admin' ? 'admin123' : 'traveler123';
+          modified = true;
+        }
+      });
+      if (modified) {
+        fs.writeFileSync(DB_PATH, JSON.stringify(parsed, null, 2), 'utf-8');
+      }
+    }
+    return parsed;
   } catch (err) {
     console.error('Error reading db.json, returning initial data', err);
     return {
@@ -779,6 +795,118 @@ function saveDb(data: DbSchema) {
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
+
+  // =================== AUTHENTICATION APIS ===================
+
+  // 1. Customer / Traveler Login
+  app.post('/api/auth/customer-login', (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Please enter both email and password.' });
+    }
+
+    const db = loadDb();
+    const user = db.users.find((u: any) => 
+      u.email.toLowerCase() === email.trim().toLowerCase()
+    );
+
+    if (!user) {
+      return res.status(401).json({ error: 'No traveler account found with this email. Please sign up.' });
+    }
+
+    if (user.password && user.password !== password.trim()) {
+      return res.status(401).json({ error: 'Invalid password. Please try again.' });
+    }
+
+    // Return sanitized customer profile
+    const { password: _, ...safeUser } = user;
+    return res.json({
+      user: safeUser,
+      token: `traveler-token-${user.id}-${Date.now()}`
+    });
+  });
+
+  // 2. Customer / Traveler Sign Up
+  app.post('/api/auth/customer-signup', (req, res) => {
+    const { name, email, phone, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email, and password are required.' });
+    }
+
+    const db = loadDb();
+    const existing = db.users.find((u: any) => 
+      u.email.toLowerCase() === email.trim().toLowerCase()
+    );
+
+    if (existing) {
+      return res.status(400).json({ error: 'An account with this email already exists. Please log in.' });
+    }
+
+    const newUser = {
+      id: `usr-${Date.now()}`,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password: password.trim(),
+      phone: phone?.trim() || '+91 98400 00000',
+      role: 'traveler',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      hasCompletedBookings: false,
+      createdAt: new Date().toISOString()
+    };
+
+    db.users.push(newUser);
+    saveDb(db);
+
+    const { password: _, ...safeUser } = newUser;
+    return res.status(201).json({
+      user: safeUser,
+      token: `traveler-token-${newUser.id}-${Date.now()}`
+    });
+  });
+
+  // 3. Dedicated Admin Gateway Login
+  app.post('/api/auth/admin-login', (req, res) => {
+    const { email, password, securityPasscode } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Admin email and password are required.' });
+    }
+
+    const db = loadDb();
+    const adminUser = db.users.find((u: any) => 
+      u.email.toLowerCase() === email.trim().toLowerCase()
+    );
+
+    if (!adminUser) {
+      return res.status(403).json({ error: 'Access denied. Administrator credentials not recognized.' });
+    }
+
+    if (adminUser.role !== 'admin') {
+      return res.status(403).json({ 
+        error: 'Access denied. This portal is strictly restricted to TN Stories administrators. Please use the Customer Login.' 
+      });
+    }
+
+    if (adminUser.password !== password.trim()) {
+      return res.status(401).json({ error: 'Invalid administrative password.' });
+    }
+
+    const { password: _, ...safeAdmin } = adminUser;
+    return res.json({
+      admin: safeAdmin,
+      token: `admin-session-${adminUser.id}-${Date.now()}`,
+      accessLevel: 'SUPER_ADMIN'
+    });
+  });
+
+  // 4. List registered users / test personas for convenience
+  app.get('/api/auth/users', (_req, res) => {
+    const db = loadDb();
+    const safeUsers = db.users.map((u: any) => {
+      const { password: _, ...safe } = u;
+      return safe;
+    });
+    return res.json(safeUsers);
+  });
 
   // API Routes
   // 1. Get Destinations

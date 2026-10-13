@@ -4,11 +4,15 @@ import { MapPin, Phone, Shield, Heart, Sparkles } from 'lucide-react';
 interface FooterProps {
   onSelectCategory?: (category: string) => void;
   onSelectDestination?: (destId: string) => void;
+  onOpenCustomerLogin?: () => void;
+  onOpenAdminLogin?: () => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   onSelectCategory,
-  onSelectDestination
+  onSelectDestination,
+  onOpenCustomerLogin,
+  onOpenAdminLogin
 }) => {
   return (
     <footer className="bg-slate-950 text-slate-400 border-t border-slate-900 pt-16 pb-12">
@@ -87,21 +91,26 @@ export const Footer: React.FC<FooterProps> = ({
             </ul>
           </div>
 
-          {/* Col 5: Traveler Assurance & Pledge */}
+          {/* Col 5: Portals & Access */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-white mb-4">
-              Our Traveler Pledge
+              Portals & Access
             </h4>
-            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-[11px] text-slate-400 space-y-2">
-              <p className="flex items-start gap-1.5 text-amber-300 font-semibold">
-                <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                <span>Verified Local Ecosystem</span>
-              </p>
-              <p>
-                Every driver, vehicle, and caretaker is certified by local district tourism associations. Fair wages and responsible tourism guaranteed.
-              </p>
-              <p className="text-[10px] text-slate-500 pt-1 border-t border-slate-800">
-                Zero Hidden Charges • Transparent Tariffs
+            <div className="space-y-2.5 text-xs">
+              <button
+                onClick={onOpenCustomerLogin}
+                className="w-full text-left px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-amber-300 font-bold border border-slate-800 transition-colors block"
+              >
+                👤 Customer Account Login
+              </button>
+              <button
+                onClick={onOpenAdminLogin}
+                className="w-full text-left px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-purple-300 font-bold border border-purple-900/50 transition-colors block"
+              >
+                🔒 Staff & Admin Gateway
+              </button>
+              <p className="text-[10px] text-slate-500 pt-1 leading-relaxed">
+                Separate authentication systems for travelers and state tourism managers.
               </p>
             </div>
           </div>
@@ -111,11 +120,11 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="pt-8 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
           <p>© 2026 TN Stories. All rights reserved. Built with pride for Tamil Nadu Tourism.</p>
           <div className="flex items-center gap-4 text-xs">
-            <span className="hover:text-slate-400 cursor-pointer">Privacy & Data Security</span>
+            <span onClick={onOpenCustomerLogin} className="hover:text-slate-300 cursor-pointer">Customer Login</span>
             <span>•</span>
-            <span className="hover:text-slate-400 cursor-pointer">Terms of Service</span>
+            <span onClick={onOpenAdminLogin} className="hover:text-purple-300 cursor-pointer">Admin Login</span>
             <span>•</span>
-            <span className="hover:text-slate-400 cursor-pointer">Ground Support</span>
+            <span className="hover:text-slate-400 cursor-pointer">Privacy Policy</span>
           </div>
         </div>
       </div>

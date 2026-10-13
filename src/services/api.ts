@@ -1,6 +1,49 @@
-import { Destination, PromotionConfig, ServiceCatalog, Booking, Review } from '../types';
+import { Destination, PromotionConfig, ServiceCatalog, Booking, Review, User } from '../types';
 
 export const api = {
+  // Authentication APIs
+  async customerLogin(credentials: { email: string; password?: string }): Promise<{ user: User; token: string }> {
+    const res = await fetch('/api/auth/customer-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Customer login failed');
+    return data;
+  },
+
+  async customerSignup(payload: { name: string; email: string; phone: string; password?: string }): Promise<{ user: User; token: string }> {
+    const res = await fetch('/api/auth/customer-signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Customer signup failed');
+    return data;
+  },
+
+  async adminLogin(credentials: { email: string; password?: string; securityPasscode?: string }): Promise<{ admin: User; token: string }> {
+    const res = await fetch('/api/auth/admin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Administrator login failed');
+    return data;
+  },
+
+  async getUsers(): Promise<User[]> {
+    try {
+      const res = await fetch('/api/auth/users');
+      if (!res.ok) throw new Error('Failed to fetch users');
+      return await res.json();
+    } catch {
+      return [];
+    }
+  },
   // Destinations
   async getDestinations(params?: { category?: string; district?: string; search?: string; hidden?: boolean }): Promise<Destination[]> {
     try {

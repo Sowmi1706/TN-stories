@@ -20,6 +20,9 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Footer } from './components/Footer';
 
+import { CustomerAuthModal } from './components/CustomerAuthModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
+
 // Default Persona Users
 const DEFAULT_USERS: User[] = [
   {
@@ -68,9 +71,28 @@ export default function App() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Active User Persona
-  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS[0]);
+  // SEPARATE CUSTOMER AND ADMIN AUTH SESSIONS
+  const [currentCustomer, setCurrentCustomer] = useState<User | null>(() => {
+    const saved = localStorage.getItem('tn_stories_customer');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return DEFAULT_USERS[0]; // Arun Kumar as default traveler demo
+  });
+
+  const [currentAdmin, setCurrentAdmin] = useState<User | null>(() => {
+    const saved = localStorage.getItem('tn_stories_admin');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return null; // Not logged in as admin by default
+  });
+
   const [promoEligible, setPromoEligible] = useState<boolean>(true);
+
+  // Separate Login Modals State
+  const [isCustomerLoginOpen, setIsCustomerLoginOpen] = useState<boolean>(false);
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState<boolean>(false);
 
   // Filtering & Discovery State
   const [selectedCategory, setSelectedCategory] = useState<TourismCategory>('All');
@@ -115,8 +137,10 @@ export default function App() {
       setBookings(bookList);
       setReviews(revList);
 
-      // Check user eligibility
-      checkUserPromoEligibility(currentUser, bookList);
+      // Check customer eligibility
+      if (currentCustomer) {
+        checkUserPromoEligibility(currentCustomer, bookList);
+      }
     } catch (err) {
       console.error('Failed to load application data', err);
     } finally {
@@ -128,7 +152,7 @@ export default function App() {
     loadAppData();
   }, []);
 
-  // Update eligibility whenever currentUser changes or bookings change
+  // Update eligibility whenever customer changes or bookings change
   const checkUserPromoEligibility = (user: User, currentBookings: Booking[]) => {
     const hasPriorBooking = currentBookings.some(
       b => (b.customerId === user.id || b.customerEmail?.toLowerCase() === user.email.toLowerCase()) &&
@@ -137,10 +161,31 @@ export default function App() {
     setPromoEligible(!hasPriorBooking);
   };
 
-  const handleSwitchUser = (user: User) => {
-    setCurrentUser(user);
+  const handleCustomerLoginSuccess = (user: User) => {
+    setCurrentCustomer(user);
+    localStorage.setItem('tn_stories_customer', JSON.stringify(user));
     checkUserPromoEligibility(user, bookings);
-    showToast(`Switched persona to ${user.name} (${user.role === 'admin' ? 'Administrator' : 'Traveler'})`);
+    showToast(`Welcome, ${user.name}! Traveler session active.`);
+  };
+
+  const handleCustomerLogout = () => {
+    setCurrentCustomer(null);
+    localStorage.removeItem('tn_stories_customer');
+    showToast('Signed out of customer account.');
+  };
+
+  const handleAdminLoginSuccess = (admin: User) => {
+    setCurrentAdmin(admin);
+    localStorage.setItem('tn_stories_admin', JSON.stringify(admin));
+    setIsAdminDashboardOpen(true);
+    showToast(`Administrative access granted: ${admin.name}`);
+  };
+
+  const handleAdminLogout = () => {
+    setCurrentAdmin(null);
+    localStorage.removeItem('tn_stories_admin');
+    setIsAdminDashboardOpen(false);
+    showToast('Logged out of Administrator Portal.');
   };
 
   // Open Details Modal and record recently viewed
@@ -161,7 +206,9 @@ export default function App() {
   // Booking Success
   const handleBookingSuccess = (newBooking: Booking) => {
     setBookings(prev => [newBooking, ...prev]);
-    checkUserPromoEligibility(currentUser, [newBooking, ...bookings]);
+    if (currentCustomer) {
+      checkUserPromoEligibility(currentCustomer, [newBooking, ...bookings]);
+    }
     showToast(`Trip booked successfully! Booking Ref: ${newBooking.id}`);
   };
 
@@ -241,12 +288,27 @@ export default function App() {
 
       {/* Main Navigation */}
       <Navbar
-        currentUser={currentUser}
-        onSwitchUser={handleSwitchUser}
-        users={DEFAULT_USERS}
+        currentCustomer={currentCustomer}
+        currentAdmin={currentAdmin}
+        onOpenCustomerLogin={() => setIsCustomerLoginOpen(true)}
+        onCustomerLogout={handleCustomerLogout}
+        onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
+        onAdminLogout={handleAdminLogout}
+        onOpenAdminDashboard={() => {
+          if (currentAdmin) {
+            setIsAdminDashboardOpen(true);
+          } else {
+            setIsAdminLoginOpen(true);
+          }
+        }}
         onOpenBooking={() => handleOpenBooking()}
-        onOpenProfile={() => setIsProfileModalOpen(true)}
-        onOpenAdmin={() => setIsAdminDashboardOpen(true)}
+        onOpenProfile={() => {
+          if (currentCustomer) {
+            setIsProfileModalOpen(true);
+          } else {
+            setIsCustomerLoginOpen(true);
+          }
+        }}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         promoEligible={promoEligible}
@@ -281,7 +343,7 @@ export default function App() {
           <ReviewsSection
             reviews={reviews}
             destinations={destinations}
-            currentUser={currentUser}
+            currentUser={currentCustomer || DEFAULT_USERS[0]}
             onEditReview={(rev) => {
               setEditingReview(rev);
               setIsReviewModalOpen(true);
@@ -539,7 +601,7 @@ export default function App() {
             <ReviewsSection
               reviews={reviews.slice(0, 3)}
               destinations={destinations}
-              currentUser={currentUser}
+              currentUser={currentCustomer || DEFAULT_USERS[0]}
               onEditReview={(rev) => {
                 setEditingReview(rev);
                 setIsReviewModalOpen(true);
@@ -577,7 +639,7 @@ export default function App() {
           destinations={destinations}
           services={services}
           promoConfig={promotion}
-          currentUser={currentUser}
+          currentUser={currentCustomer || DEFAULT_USERS[0]}
           preselectedDestination={preselectedBookingDest}
           onClose={() => setIsBookingWizardOpen(false)}
           onBookingSuccess={handleBookingSuccess}
@@ -589,8 +651,8 @@ export default function App() {
         <ReviewModal
           destination={reviewModalTargetDest}
           destinations={destinations}
-          userBookings={bookings.filter(b => b.customerId === currentUser.id)}
-          currentUser={currentUser}
+          userBookings={bookings.filter(b => b.customerId === (currentCustomer?.id || 'usr-arun'))}
+          currentUser={currentCustomer || DEFAULT_USERS[0]}
           existingReview={editingReview}
           onClose={() => {
             setIsReviewModalOpen(false);
@@ -603,7 +665,7 @@ export default function App() {
       {/* User Profile Modal */}
       {isProfileModalOpen && (
         <UserProfileModal
-          currentUser={currentUser}
+          currentUser={currentCustomer || DEFAULT_USERS[0]}
           bookings={bookings}
           reviews={reviews}
           destinations={destinations}
@@ -648,6 +710,22 @@ export default function App() {
         />
       )}
 
+      {/* Dedicated Customer / Traveler Login Modal */}
+      {isCustomerLoginOpen && (
+        <CustomerAuthModal
+          onClose={() => setIsCustomerLoginOpen(false)}
+          onLoginSuccess={handleCustomerLoginSuccess}
+        />
+      )}
+
+      {/* Dedicated Administrator Gateway Login Modal */}
+      {isAdminLoginOpen && (
+        <AdminLoginModal
+          onClose={() => setIsAdminLoginOpen(false)}
+          onAdminLoginSuccess={handleAdminLoginSuccess}
+        />
+      )}
+
       {/* Footer */}
       <Footer
         onSelectCategory={(cat) => {
@@ -658,6 +736,8 @@ export default function App() {
           const dest = destinations.find(d => d.id === id);
           if (dest) handleOpenDetails(dest);
         }}
+        onOpenCustomerLogin={() => setIsCustomerLoginOpen(true)}
+        onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
       />
     </div>
   );
