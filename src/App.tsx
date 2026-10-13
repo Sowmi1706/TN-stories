@@ -22,6 +22,7 @@ import { Footer } from './components/Footer';
 
 import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
+import { AIChatbox } from './components/AIChatbox';
 
 // Default Persona Users
 const DEFAULT_USERS: User[] = [
@@ -110,6 +111,7 @@ export default function App() {
   const [editingReview, setEditingReview] = useState<Review | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState<boolean>(false);
+  const [isAIChatOpen, setIsAIChatOpen] = useState<boolean>(false);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -309,6 +311,7 @@ export default function App() {
             setIsCustomerLoginOpen(true);
           }
         }}
+        onOpenAIChat={() => setIsAIChatOpen(true)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         promoEligible={promoEligible}
@@ -597,6 +600,33 @@ export default function App() {
               </div>
             )}
 
+            {/* AI Travel Concierge Interactive Showcase */}
+            <div className="bg-gradient-to-r from-amber-950 via-amber-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 border border-amber-600/30">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center shrink-0 text-amber-300 shadow-md">
+                  <Sparkles className="w-7 h-7" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-500/30">
+                    Smart AI Travel Concierge • Powered by Gemini 3.8
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-bold font-serif text-white mt-1">
+                    Need Personalized Advice for Your Tamil Nadu Journey?
+                  </h3>
+                  <p className="text-xs sm:text-sm text-amber-100/80 mt-1 max-w-xl">
+                    Chat with our AI Concierge for tailored multi-day itineraries, temple dress codes, hidden Nilgiri scenic viewpoints, Madurai food walks, and caretaker options.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAIChatOpen(true)}
+                className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs sm:text-sm shadow-lg shadow-amber-950/40 hover:scale-105 transition-all shrink-0 flex items-center gap-2 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-slate-950" />
+                <span>Ask AI Travel Guide</span>
+              </button>
+            </div>
+
             {/* Traveler Stories Preview Strip */}
             <ReviewsSection
               reviews={reviews.slice(0, 3)}
@@ -738,6 +768,15 @@ export default function App() {
         }}
         onOpenCustomerLogin={() => setIsCustomerLoginOpen(true)}
         onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
+      />
+
+      {/* AI Travel Concierge Floating Chatbox */}
+      <AIChatbox
+        destinations={destinations}
+        onSelectDestination={handleOpenDetails}
+        onBookDestination={handleOpenBooking}
+        isOpen={isAIChatOpen}
+        onToggleOpen={setIsAIChatOpen}
       />
     </div>
   );

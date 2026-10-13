@@ -15,6 +15,7 @@ interface NavbarProps {
   onOpenAdminDashboard: () => void;
   onOpenBooking: () => void;
   onOpenProfile: () => void;
+  onOpenAIChat?: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   promoEligible: boolean;
@@ -30,6 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAdminDashboard,
   onOpenBooking,
   onOpenProfile,
+  onOpenAIChat,
   activeTab,
   setActiveTab,
   promoEligible
@@ -157,6 +159,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             Traveler Stories
           </button>
+
+          {/* AI Guide Navigation Trigger */}
+          {onOpenAIChat && (
+            <button
+              onClick={onOpenAIChat}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-900 hover:bg-amber-500/20 flex items-center gap-1.5 transition-all ml-1 border border-amber-300/80 cursor-pointer shadow-2xs group"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-600 group-hover:rotate-12 transition-transform" />
+              <span>AI Guide</span>
+            </button>
+          )}
 
           {/* Admin Dashboard shortcut when logged in */}
           {currentAdmin && (

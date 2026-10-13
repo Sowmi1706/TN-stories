@@ -227,5 +227,16 @@ export const api = {
     const res = await fetch('/api/admin/stats');
     if (!res.ok) throw new Error('Failed to fetch admin stats');
     return await res.json();
+  },
+
+  // AI Travel Chatbot
+  async sendChatMessage(payload: { message: string; history?: { role: string; text: string }[] }): Promise<{ reply: string; suggestedDestinations?: string[] }> {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to send message to AI Concierge');
+    return await res.json();
   }
 };

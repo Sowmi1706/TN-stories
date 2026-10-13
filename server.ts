@@ -3,12 +3,23 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { GoogleGenAI } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = 3000;
 const DB_PATH = path.join(__dirname, 'data', 'tn_stories_db.json');
+
+// Initialize Gemini API client on server
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
 
 // Ensure data directory exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
@@ -1374,6 +1385,131 @@ async function startServer() {
       avgRating,
       destinationsCount: db.destinations.length
     });
+  });
+
+  // 9. AI Travel Concierge Chatbot Endpoint
+  app.post('/api/chat', async (req, res) => {
+    const { message, history } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    const db = loadDb();
+    const destinationNames = db.destinations.map((d: any) => `${d.name} (${d.district})`).join(', ');
+
+    const systemInstruction = `You are "Vanakkam Assistant", the friendly and expert AI Travel Concierge for "TN Stories" — the smart tourism and trip booking platform for Tamil Nadu, India.
+Your mission is to guide travelers with authentic, practical, culturally rich, and inspiring advice about Tamil Nadu destinations.
+
+Available Destinations in TN Stories Database:
+${destinationNames}
+
+Key Platform Features You Can Highlight:
+1. Caretaker & Local Certified Guide Services: Travelers can book dedicated elderly/family caretakers (₹1,200/day) and state-certified heritage storytellers (₹1,500/day).
+2. Curated vs Custom Trips: Travelers can book all-inclusive packages or customize private vehicles (Sedan, Innova, Tempo) and accommodations.
+3. First-Booking Offer: 10% OFF on first eligible booking above ₹3,000 (Use code FIRST10).
+4. Authentic regional gastronomy: Recommend Madurai Jigarthanda & Kari Dosa, Chettinad Pepper Chicken & Vellai Paniyaram, Dindigul Biryani, Ooty Homemade Chocolates & Varkey, Kumbakonam Degree Coffee, Kanyakumari fish curry.
+
+Guidelines:
+- Start with a warm, courteous Tamil greeting when appropriate (e.g., "Vanakkam! 🙏").
+- Provide structured, helpful answers with bullet points for readability.
+- Mention ideal months, temple timings/etiquette (traditional modest attire, removing footwear), and travel connectivity (nearest airports/railways).
+- If the user asks about booking, invite them to use the "Book Your Trip" button or browse our destinations.
+- Keep responses friendly, concise, and informative (around 120-220 words).`;
+
+    try {
+      const isRealApiKey = Boolean(
+        process.env.GEMINI_API_KEY &&
+        process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY' &&
+        process.env.GEMINI_API_KEY.trim().length > 10
+      );
+
+      if (isRealApiKey) {
+        // Build conversation parts
+        const contents: any[] = [];
+        if (Array.isArray(history)) {
+          for (const item of history.slice(-6)) {
+            contents.push({
+              role: item.role === 'user' ? 'user' : 'model',
+              parts: [{ text: item.text }]
+            });
+          }
+        }
+        contents.push({
+          role: 'user',
+          parts: [{ text: message }]
+        });
+
+        // Use Promise.race with an 8 second timeout to ensure high responsiveness
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Gemini API timeout')), 8000)
+        );
+
+        const geminiPromise = ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+          }
+        });
+
+        const response: any = await Promise.race([geminiPromise, timeoutPromise]);
+        const reply = response.text || "Vanakkam! I'd love to help you explore Tamil Nadu. Could you share what kind of places you enjoy — misty hills, majestic temples, or coastal sunsets?";
+
+        // Identify any mentioned destinations to suggest quick links
+        const mentionedDestIds: string[] = [];
+        const lowerReply = reply.toLowerCase() + ' ' + message.toLowerCase();
+        db.destinations.forEach((d: any) => {
+          if (lowerReply.includes(d.id) || lowerReply.includes(d.name.toLowerCase().split(' ')[0])) {
+            mentionedDestIds.push(d.id);
+          }
+        });
+
+        return res.json({
+          reply,
+          suggestedDestinations: mentionedDestIds.slice(0, 3)
+        });
+      } else {
+        // Fallback intelligent domain engine when API key is pending configuration
+        const lower = message.toLowerCase();
+        let fallbackReply = "Vanakkam! 🙏 Welcome to TN Stories. ";
+        let suggestedDestIds: string[] = ['ooty', 'madurai'];
+
+        if (lower.includes('ooty') || lower.includes('nilgiri') || lower.includes('hill')) {
+          fallbackReply += "Ooty and Kodaikanal are our crown hill stations in the Western Ghats! In Ooty, don't miss the UNESCO Nilgiri Mountain Railway (Toy Train), Doddabetta Peak, and sampling fresh homemade chocolates & Varkey. Best season to visit is October to June.";
+          suggestedDestIds = ['ooty', 'kodaikanal'];
+        } else if (lower.includes('madurai') || lower.includes('temple') || lower.includes('heritage') || lower.includes('meenakshi')) {
+          fallbackReply += "Madurai is the cultural capital of Tamil Nadu! The Meenakshi Amman Temple features 14 majestic sculpted gopurams. Temple etiquette requires traditional modest attire (dhotis/saris/kurthas) and removing footwear. Don't leave without tasting famous chilled Madurai Jigarthanda and authentic Kari Dosa!";
+          suggestedDestIds = ['madurai', 'thanjavur'];
+        } else if (lower.includes('beach') || lower.includes('coast') || lower.includes('kanyakumari') || lower.includes('sunset') || lower.includes('sea')) {
+          fallbackReply += "Kanyakumari is where the Arabian Sea, Gulf of Mannar, and Indian Ocean converge! You can view stunning sunrises and sunsets from the same coastline. Take the short ferry ride to the Vivekananda Rock Memorial and the 133-ft Thiruvalluvar Statue.";
+          suggestedDestIds = ['kanyakumari', 'mahabalipuram'];
+        } else if (lower.includes('caretaker') || lower.includes('guide') || lower.includes('assist')) {
+          fallbackReply += "TN Stories offers verified Local Caretakers (₹1,200/day for elderly, family, or solo traveler comfort) and Certified Heritage Guides (₹1,500/day for deep historical storytelling). You can select them directly in Step 5 of our Booking Wizard!";
+          suggestedDestIds = ['madurai', 'thanjavur', 'chettinad'];
+        } else if (lower.includes('offer') || lower.includes('discount') || lower.includes('promo') || lower.includes('coupon') || lower.includes('first')) {
+          fallbackReply += "First-time travelers enjoy a 10% discount up to ₹2,500 on all eligible bookings above ₹3,000! Use code FIRST10 during checkout. Our server automatically verifies eligibility for your account.";
+          suggestedDestIds = ['ooty', 'kodaikanal', 'madurai'];
+        } else if (lower.includes('food') || lower.includes('cuisine') || lower.includes('eat')) {
+          fallbackReply += "Tamil Nadu is a food lover's paradise! Savor Chettinad Pepper Chicken & Vellai Paniyaram in Karaikudi, famous Dindigul Thalappakatti Biryani, Kumbakonam Degree Coffee, hot Kanyakumari fish curries, and Ooty homemade chocolates.";
+          suggestedDestIds = ['chettinad', 'madurai', 'kodaikanal'];
+        } else {
+          fallbackReply += "Tamil Nadu offers a magnificent range of landscapes — from the misty peaks of Ooty and Kodaikanal, to the ancient Chola temples of Thanjavur and Madurai, and coastal wonders like Mahabalipuram and Kanyakumari. You can book customized chauffeured vehicles or all-inclusive tour packages directly on TN Stories!";
+          suggestedDestIds = ['ooty', 'madurai', 'mahabalipuram'];
+        }
+
+        return res.json({
+          reply: fallbackReply,
+          suggestedDestinations: suggestedDestIds
+        });
+      }
+    } catch (err: any) {
+      console.error('Error generating AI chat response:', err);
+      return res.json({
+        reply: "Vanakkam! 🙏 I am here to help you plan your journey across Tamil Nadu. Whether you're seeking misty Nilgiri tea trails, ancient Chola architecture in Thanjavur, or coastal serenity in Kanyakumari, feel free to ask me about itineraries, travel tips, and best local foods!",
+        suggestedDestinations: ['ooty', 'madurai', 'kanyakumari']
+      });
+    }
   });
 
   // Mount Vite or serve static dist
