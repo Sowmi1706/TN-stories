@@ -1,0 +1,6 @@
+{
+  "name": "TN Stories - Tamil Nadu Tourism & Smart Trip Booking",
+  "description": "Discover the beauty of Tamil Nadu and book personalized trips to Ooty, Kodaikanal, Kanyakumari, Mahabalipuram, Madurai and more with TN Stories.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
